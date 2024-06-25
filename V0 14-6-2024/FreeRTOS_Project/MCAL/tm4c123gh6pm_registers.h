@@ -382,6 +382,22 @@ UART0 Registers
 #define UART0_CC_REG              (*((volatile uint32 *)0x4000CFC8))
 
 /*****************************************************************************
+ADC0 Registers
+*****************************************************************************/
+#define ADC0_ACTSS_REG               (*((volatile uint32 *)0x40038000))
+#define ADC0_RIS_REG                  (*((volatile uint32 *)0x40038004))
+#define ADC0_IM_REG                  (*((volatile uint32 *)0x40038008))
+#define ADC0_ISC_REG                  (*((volatile uint32 *)0x4003800C))
+#define ADC0_EMUX_REG                (*((volatile uint32 *)0x40038014))
+#define ADC0_PSSI_REG                (*((volatile uint32 *)0x40038028))
+#define ADC0_SSMUX3_REG              (*((volatile uint32 *)0x400380A0))
+#define ADC0_SSCTL3_REG              (*((volatile uint32 *)0x400380A4))
+#define ADC0_SSFIFO3_REG              (*((volatile uint32 *)0x400380A8))
+#define ADC0_SSMUX2_REG              (*((volatile uint32 *)0x40038080))
+#define ADC0_SSCTL2_REG              (*((volatile uint32 *)0x40038084))
+#define ADC0_SSFIFO2_REG              (*((volatile uint32 *)0x40038088))
+
+/*****************************************************************************
 Micro Direct Memory Access Registers (UDMA)
 *****************************************************************************/
 #define UDMA_STAT_REG             (*((volatile uint32 *)0x400FF000))
