@@ -29,8 +29,8 @@
 #define configCPU_CLOCK_HZ                    (( unsigned long )16000000)
 
 /* configTICK_RATE_HZ sets frequency of the tick interrupt in Hz, so
- * in our case Tick time will be 10ms */
-#define configTICK_RATE_HZ                    ((TickType_t)100)
+ * in our case Tick time will be 1ms */
+#define configTICK_RATE_HZ                    ((TickType_t)1000)
 
 /* Size of the stack allocated to the Idle task. 128 Words = 512 Bytes */
 #define configMINIMAL_STACK_SIZE              (128)
