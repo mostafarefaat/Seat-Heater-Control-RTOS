@@ -168,6 +168,7 @@ static void prvSetupHardware( void )
 {
     /* Place here any needed HW initialization such as GPIO, UART, etc.  */
     GPIO_BuiltinButtonsLedsInit();
+    GPIO_PORTA_LedsInit();
     GPIO_SW1EdgeTriggeredInterruptInit();
     GPIO_SW2EdgeTriggeredInterruptInit();
     UART0_Init();
@@ -316,27 +317,31 @@ void vDriverHeaterHandlerTask(void *pvParameters)
                 delta_temp = current_received_temp - desired_received_temp ;
 
                 if( delta_temp <= (-10) ){
-                    Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_HIGH;
-                    GPIO_Leds_Off();
+                    Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_HIGH;  /*Cyan*/
+                    GPIO_PORTF_Leds_Off();
                     GPIO_GreenLedOn();
                     GPIO_BlueLedOn();
+                    Delay_MS(500);
 
                 }
                 else if( (delta_temp <= (-5)) && (delta_temp > (-10))  ){
-                    Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_MED;
-                    GPIO_Leds_Off();
+                    Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_MED; /*Blue*/
+                    GPIO_PORTF_Leds_Off();
                     GPIO_BlueLedOn();
+                    Delay_MS(500);
 
                 }
                 else if( (delta_temp <= (-2)) && (delta_temp > (-5))  ){
-                    Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_LOW;
-                    GPIO_Leds_Off();
+                    Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_LOW; /*Green*/
+                    GPIO_PORTF_Leds_Off();
                     GPIO_GreenLedOn();
+                    Delay_MS(500);
 
                 }
                 else if( delta_temp > (-2) ){
                     Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_OFF;
-                    GPIO_Leds_Off();
+                    GPIO_PORTF_Leds_Off();
+                    Delay_MS(500);
 
                 }
                 else{
@@ -368,26 +373,30 @@ void vPassengerHeaterHandlerTask(void *pvParameters)
 
                 if( delta_temp <= (-10) ){
                     Passenger_Seat_Info.heater_output_signal = HEAT_OUTPUT_HIGH;
-                    GPIO_Leds_Off();
-                    GPIO_GreenLedOn();
-                    GPIO_BlueLedOn();
+                    GPIO_PORTA_Leds_Off();
+                    GPIO_PORTA_GreenLedOn();
+                    GPIO_PORTA_BlueLedOn();
+                    Delay_MS(500);
 
                 }
                 else if( (delta_temp <= (-5)) && (delta_temp > (-10))  ){
                     Passenger_Seat_Info.heater_output_signal = HEAT_OUTPUT_MED;
-                    GPIO_Leds_Off();
-                    GPIO_BlueLedOn();
+                    GPIO_PORTA_Leds_Off();
+                    GPIO_PORTA_BlueLedOn();
+                    Delay_MS(500);
 
                 }
                 else if( (delta_temp <= (-2)) && (delta_temp > (-5))  ){
                     Passenger_Seat_Info.heater_output_signal = HEAT_OUTPUT_LOW;
-                    GPIO_Leds_Off();
-                    GPIO_GreenLedOn();
+                    GPIO_PORTA_Leds_Off();
+                    GPIO_PORTA_GreenLedOn();
+                    Delay_MS(500);
 
                 }
                 else if( delta_temp > (-2) ){
                     Passenger_Seat_Info.heater_output_signal = HEAT_OUTPUT_OFF;
-                    GPIO_Leds_Off();
+                    GPIO_PORTA_Leds_Off();
+                    Delay_MS(500);
 
                 }
                 else{
@@ -406,8 +415,8 @@ void vDriverTempTask(void *pvParameters)
     for (;;)
     {
         vTaskDelay(pdMS_TO_TICKS(5000));
-        //current_received_temperature = (rand()%35)+5;                   /*Random Number From 5 to 40*/ /*TODO: input from Potentiometer*/
-        current_received_temperature++;
+        current_received_temperature = (rand()%35)+5;                   /*Random Number From 5 to 40*/ /*TODO: input from Potentiometer*/
+        //current_received_temperature++;
         xQueueSend(xQueueDriverTemperature,&current_received_temperature,portMAX_DELAY);
     }
 }
@@ -419,8 +428,8 @@ void vPassengerTempTask(void *pvParameters)
     for (;;)
     {
         vTaskDelay(pdMS_TO_TICKS(5000));
-        //current_received_temperature = (rand()%35)+5;                   /*Random Number From 5 to 40*/ /*TODO: input from Potentiometer*/
-        current_received_temperature++;
+        current_received_temperature = (rand()%35)+5;                   /*Random Number From 5 to 40*/ /*TODO: input from Potentiometer*/
+        //current_received_temperature++;
         xQueueSend(xQueuePassengerTemperature,&current_received_temperature,portMAX_DELAY);
     }
 }
@@ -490,8 +499,6 @@ void vUARTTask(void *pvParameters)
 void GPIOPortF_Handler(void){
     BaseType_t pxHigherPriorityTaskWoken = pdFALSE;
 
-    //UART0_SendString("ISR is Processing\r\n");
-
     if(GPIO_PORTF_RIS_REG & (1<<0)){       /*SW2*/
         xEventGroupSetBitsFromISR(xButtonsEventGroup, mainSW2_INTERRUPT_BIT, &pxHigherPriorityTaskWoken);
         GPIO_PORTF_ICR_REG   |= (1<<0);       /* Clear Trigger flag for PF0 (Interrupt Flag) */
@@ -501,7 +508,6 @@ void GPIOPortF_Handler(void){
         xEventGroupSetBitsFromISR(xButtonsEventGroup, mainSW1_INTERRUPT_BIT, &pxHigherPriorityTaskWoken);
         GPIO_PORTF_ICR_REG   |= (1<<4);       /* Clear Trigger flag for PF4 (Interrupt Flag) */
     }
-
 }
 /*-----------------------------------------------------------*/
 /* Idle Hook API */

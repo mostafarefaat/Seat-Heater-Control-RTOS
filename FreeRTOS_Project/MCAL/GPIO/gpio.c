@@ -38,6 +38,54 @@ void GPIO_BuiltinButtonsLedsInit(void)
     GPIO_PORTF_DATA_REG  &= ~(1<<1) & ~(1<<2) & ~(1<<3);      /* Clear bits 1, 2 & 3 in Data register to turn off the LEDs */
 }
 
+/*---------------------------------*/
+/*---------------------------------*/
+/*-------------Extra Added Function---------------*/
+void GPIO_PORTA_LedsInit(void)
+{
+    /*
+     * PA2 --> Green LED
+     * PA3 --> Blue LED
+     */
+
+    /* Enable clock for PORTF and wait for clock to start */
+    SYSCTL_RCGCGPIO_REG |= 0x01;
+    while(!(SYSCTL_PRGPIO_REG & 0x01));
+    GPIO_PORTA_AMSEL_REG &= 0xF3;                             /* Disable Analog on PA2, PA3*/
+    GPIO_PORTA_PCTL_REG  &= 0xFFFF00FF;                       /* Clear PMCx bits for PA2, PA3 to use it as GPIO pins */
+    GPIO_PORTA_DIR_REG   |= ((1<<2) | (1<<3));                /* Configure PA2, PA3 as output pins */
+    GPIO_PORTA_AFSEL_REG &= 0xF3;                             /* Disable alternative function on PA2, PA3 */
+    GPIO_PORTA_DEN_REG   |= 0x0C;                             /* Enable Digital I/O on PA2, PA3*/
+    GPIO_PORTA_DATA_REG  &= ~(1<<2) & ~(1<<3);                 /* Clear bits 2 & 3 in Data register to turn off the LEDs */
+}
+
+/*---------------------------------*/
+void GPIO_PORTF_Leds_Off(void){           /* PORTF LEDs are Off */
+
+    GPIO_PORTF_DATA_REG &= 0xF1;
+}
+/*---------------------------------*/
+void GPIO_PORTA_BlueLedOn(void){
+    GPIO_PORTA_DATA_REG |= (1<<2);  /* Blue LED ON */
+}
+/*---------------------------------*/
+void GPIO_PORTA_GreenLedOn(void){
+    GPIO_PORTA_DATA_REG |= (1<<3);  /* Green LED ON */
+}
+/*---------------------------------*/
+void GPIO_PORTA_BlueLedOff(void){
+    GPIO_PORTA_DATA_REG &= ~(1<<2);  /* Blue LED OFF */
+}
+/*---------------------------------*/
+void GPIO_PORTA_GreenLedOff(void){
+    GPIO_PORTA_DATA_REG &= ~(1<<3);  /* Green LED OFF */
+}
+/*---------------------------------*/
+void GPIO_PORTA_Leds_Off(void){
+    GPIO_PORTA_DATA_REG &= 0xF3;
+}
+/*---------------------------------*/
+/*---------------------------------*/
 void GPIO_RedLedOn(void)
 {
     GPIO_PORTF_DATA_REG |= (1<<1);  /* Red LED ON */
@@ -83,12 +131,6 @@ void GPIO_GreenLedToggle(void)
     GPIO_PORTF_DATA_REG ^= (1<<3);  /* Green LED is toggled */
 }
 
-/*---------------------------------*/
-/*Extra Added Function*/
-void GPIO_Leds_Off(void){           /* All LEDs are Off */
-
-    GPIO_PORTF_DATA_REG &= 0xF1;
-}
 /*---------------------------------*/
 uint8 GPIO_SW1GetState(void)
 {
