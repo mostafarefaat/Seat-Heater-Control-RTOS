@@ -43,8 +43,10 @@ void GPIO_PORTF_Leds_Off(void);
 void GPIO_PORTA_LedsInit(void);
 void GPIO_PORTA_BlueLedOn(void);
 void GPIO_PORTA_GreenLedOn(void);
+void GPIO_PORTA_RedLedOn(void);
 void GPIO_PORTA_BlueLedOff(void);
 void GPIO_PORTA_GreenLedOff(void);
+void GPIO_PORTA_BlueLedOff(void);
 void GPIO_PORTA_Leds_Off(void);
 /*------------------------------------*/
 

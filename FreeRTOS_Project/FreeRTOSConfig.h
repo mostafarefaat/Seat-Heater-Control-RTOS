@@ -18,6 +18,9 @@
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 
+#include "GPTM.h"
+#include "std_types.h"
+
 /******************************************************************************/
 /* Scheduling behavior related definitions. **********************************/
 /******************************************************************************/
@@ -57,18 +60,24 @@
  * or heap_4.c are included in the build. This value is defaulted to 4096 bytes but
  * it must be tailored to each application. Note the heap will appear in the .bss
  * section. */
-#define configTOTAL_HEAP_SIZE                 ((size_t)(16384))
+#define configTOTAL_HEAP_SIZE                 ((size_t)(12288))
 
 /******************************************************************************/
 /* Definitions that include or exclude functionality. *************************/
 /******************************************************************************/
+/* Set the following configUSE_* constants to 1 to include the named feature in
+ * the build, or 0 to exclude the named feature from the build. */
+#define configUSE_APPLICATION_TASK_TAG         1
 
 /* Set the following INCLUDE_* constants to 1 to include the named API function,
  * or 0 to exclude the named API function.  Most linkers will remove unused
  * functions even when the constant is 1. */
 #define INCLUDE_vTaskDelay                      1
+#define INCLUDE_vTaskDelayUntil               1
 #define INCLUDE_xTimerPendFunctionCall          1
 #define configUSE_MUTEXES                       1
+#define INCLUDE_vTaskDelete                    1
+#define INCLUDE_vTaskSuspend                   1
 
 /******************************************************************************/
 /* Software timer related definitions. ****************************************/
@@ -138,5 +147,28 @@ PRIORITY THAN THIS! (higher priorities are lower numeric values. */
 
 /* Normal assert() semantics without relying on the provision of an assert.h header file. */
 #define configASSERT( x ) if( ( x ) == 0 ) { taskDISABLE_INTERRUPTS(); for( ;; ); }
+
+/******************************************************************************/
+/* RTOS Runtime Measurements. *************************************************/
+/******************************************************************************/
+
+extern uint32 ullTasksOutTime[10];
+extern uint32 ullTasksInTime[10];
+extern uint32 ullTasksTotalTime[10];
+extern uint32 ullTasksExecutionTime[10];
+
+#define traceTASK_SWITCHED_IN()                                    \
+do{                                                                \
+    uint32 taskInTag = (uint32)(pxCurrentTCB->pxTaskTag);          \
+    ullTasksInTime[taskInTag] = GPTM_WTimer0Read();                \
+}while(0);
+
+#define traceTASK_SWITCHED_OUT()                                                                 \
+do{                                                                                              \
+    uint32 taskOutTag = (uint32)(pxCurrentTCB->pxTaskTag);                                       \
+    ullTasksOutTime[taskOutTag] = GPTM_WTimer0Read();                                            \
+    ullTasksTotalTime[taskOutTag] += ullTasksOutTime[taskOutTag] - ullTasksInTime[taskOutTag];   \
+    ullTasksExecutionTime[taskOutTag] = ullTasksOutTime[taskOutTag] - ullTasksInTime[taskOutTag];\
+}while(0);
 
 #endif /* FREERTOS_CONFIG_H */
