@@ -35,6 +35,9 @@
 
 int rand(void);
 
+/*Buffer for Run Time Analysis*/
+char runTimeStatsBuff[360];
+
 void Delay_MS(unsigned long long n)
 {
     volatile unsigned long long count = 0;
@@ -65,6 +68,7 @@ uint32 ullTasksInTime[10];
 uint32 ullTasksTotalTime[10];
 uint32 ullTasksExecutionTime[10];
 
+
 /* Used to hold the handle of tasks */
 TaskHandle_t xButtonTaskTaskHandle;
 TaskHandle_t xDriverHeaterTaskHandle;
@@ -75,7 +79,6 @@ TaskHandle_t xDriverTempTaskHandle;
 TaskHandle_t xPassengerTempTaskHandle;
 TaskHandle_t xScreenTaskHandle;
 TaskHandle_t xRunTimeAnalysisTaskHandle;
-
 
 /*FreeRTOS Event Groups*/
 EventGroupHandle_t xButtonsEventGroup;
@@ -98,6 +101,9 @@ SemaphoreHandle_t xPassengerStructMutex;
 QueueSetHandle_t xQueueDriverTemperature;
 QueueSetHandle_t xQueuePassengerTemperature;
 
+SemaphoreHandle_t xUpdateDriverBinarySemaphore;
+SemaphoreHandle_t xUpdatePassengerBinarySemaphore;
+
 /*Seat Info Structure*/
 typedef struct{
     uint8_t   seat;
@@ -107,22 +113,21 @@ typedef struct{
     uint8_t   heater_output_signal;
 }Input_Info;
 
-typedef struct{
-    uint8_t   *seat;
-    uint8_t   *heat_level;
-    uint8_t   desired_temp;
-    uint8_t   current_temp;
-    uint8_t   *heater_output_signal;
-}UART_Info;
 
 
 /*Create Seat_Info Struct*/
-Input_Info Driver_Seat_Info    = {0,0,0,0};
-Input_Info Passenger_Seat_Info = {0,0,0,0};
+Input_Info Driver_Seat_Info    = {0,HEAT_LEVEL_HIGH,0,0};
+Input_Info Passenger_Seat_Info = {0,HEAT_LEVEL_HIGH,0,0};
 
-UART_Info UART_Driver_Seat_Info    = {"NULL","NULL",0,0,"NULL"};
-UART_Info UART_Passenger_Seat_Info = {"NULL","NULL",0,0,"NULL"};
+uint8_t    Driver_Seat_CurrentTemp ;
+uint8_t    Driver_Seat_DesiredTemp ;
+uint8_t   *Driver_Seat_HeatingLevel = "HIGH";
+uint8_t   *Driver_Seat_HeaterState ;
 
+uint8_t    Passenger_Seat_CurrentTemp ;
+uint8_t    Passenger_Seat_DesiredTemp ;
+uint8_t   *Passenger_Seat_HeatingLevel= "HIGH";
+uint8_t   *Passenger_Seat_HeaterState ;
 
 int main(void)
 {
@@ -136,6 +141,10 @@ int main(void)
     /*Creating Semaphores & Mutex*/
     xDriverBinarySemaphore = xSemaphoreCreateBinary();
     xPassengerBinarySemaphore = xSemaphoreCreateBinary();
+
+    xUpdateDriverBinarySemaphore = xSemaphoreCreateBinary();
+    xUpdatePassengerBinarySemaphore = xSemaphoreCreateBinary();
+
     xUARTMutex = xSemaphoreCreateMutex();
     xDriverStructMutex = xSemaphoreCreateMutex();
     xPassengerStructMutex = xSemaphoreCreateMutex();
@@ -148,7 +157,7 @@ int main(void)
 
     /*Responsible for capturing which button is pressed and what is the desired Heating Level (Off - Low - Medium - High)
      * and send this data to vHeaterMonitorTask via Message Queue*/
-    xTaskCreate(vButtonTask, "Button Task", configMINIMAL_STACK_SIZE, NULL, 3, &xButtonTaskTaskHandle);
+    xTaskCreate(vButtonTask, "Button Task", configMINIMAL_STACK_SIZE, NULL, 4, &xButtonTaskTaskHandle);
 
 
     /*Responsible for Receiving the data (which button is pressed and what is the desired Heating Level) acquired from vButtonTask via Message Queue
@@ -158,13 +167,13 @@ int main(void)
 
     /*Responsible for Receiving the data acquired from vHeaterMonitorTask via Message Queue
      * and pass these data to vHeaterHandlerTask*/
-    xTaskCreate(vDriverHeaterHandlerTask, "Driver Handler", configMINIMAL_STACK_SIZE, NULL, 2, &xDriverHeaterHandlerTaskHandle);
-    xTaskCreate(vPassengerHeaterHandlerTask, "Passenger Handler", configMINIMAL_STACK_SIZE, NULL, 2, &xPassengerHeaterHandlerTaskHandle);
+    xTaskCreate(vDriverHeaterHandlerTask, "Driver Handler", configMINIMAL_STACK_SIZE, NULL, 3, &xDriverHeaterHandlerTaskHandle);
+    xTaskCreate(vPassengerHeaterHandlerTask, "Passenger Handler", configMINIMAL_STACK_SIZE, NULL, 3, &xPassengerHeaterHandlerTaskHandle);
 
-    xTaskCreate(vDriverTempTask, "Driver Temp ", configMINIMAL_STACK_SIZE, NULL, 2, &xDriverTempTaskHandle);
-    xTaskCreate(vPassengerTempTask, "Passenger Temperature ", configMINIMAL_STACK_SIZE, NULL, 2, &xPassengerTempTaskHandle);
+    xTaskCreate(vDriverTempTask, "Driver Temp ", configMINIMAL_STACK_SIZE, NULL, 3, &xDriverTempTaskHandle);
+    xTaskCreate(vPassengerTempTask, "Passenger Temperature ", configMINIMAL_STACK_SIZE, NULL, 3, &xPassengerTempTaskHandle);
 
-    xTaskCreate(vScreenTask, "Screen Task", configMINIMAL_STACK_SIZE, NULL, 2, &xScreenTaskHandle);
+    xTaskCreate(vScreenTask, "Screen Task", configMINIMAL_STACK_SIZE, NULL, 1, &xScreenTaskHandle);
 
     xTaskCreate(vRunTimeMeasurementsTask, "Run-time Measurements", 256, NULL, 1, &xRunTimeAnalysisTaskHandle);
 
@@ -215,7 +224,7 @@ void vButtonTask(void *pvParameters)
 
     for (;;)
     {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        //vTaskDelay(pdMS_TO_TICKS(1000));
         /* Block to wait for event bits to become set within the event group. */
         xEventGroupValue = xEventGroupWaitBits( xButtonsEventGroup,    /* The event group to read. */
                                    xBitsToWaitFor,              /* Bits to test. */
@@ -231,10 +240,10 @@ void vButtonTask(void *pvParameters)
 
                     Driver_Seat_Info.seat = DRIVER_SEAT;
                     switch(xDriversButtonCounting){
-                    case 0 : Driver_Seat_Info.heat_level = HEAT_LEVEL_OFF; break;
-                    case 1 : Driver_Seat_Info.heat_level = HEAT_LEVEL_LOW; break;
-                    case 2 : Driver_Seat_Info.heat_level = HEAT_LEVEL_MED; break;
-                    case 3 : Driver_Seat_Info.heat_level = HEAT_LEVEL_HIGH; break;
+                    case 0 : Driver_Seat_Info.heat_level = HEAT_LEVEL_OFF;  Driver_Seat_HeatingLevel = "OFF";  break;
+                    case 1 : Driver_Seat_Info.heat_level = HEAT_LEVEL_LOW;  Driver_Seat_HeatingLevel = "LOW"; break;
+                    case 2 : Driver_Seat_Info.heat_level = HEAT_LEVEL_MED;  Driver_Seat_HeatingLevel = "MED"; break;
+                    case 3 : Driver_Seat_Info.heat_level = HEAT_LEVEL_HIGH; Driver_Seat_HeatingLevel = "HIGH"; break;
                     default: break;
                     }
                     xSemaphoreGive(xDriverStructMutex);
@@ -249,10 +258,10 @@ void vButtonTask(void *pvParameters)
 
                     Passenger_Seat_Info.seat = PASSENGER_SEAT;
                     switch(xPassengerButtonCounting){
-                    case 0 : Passenger_Seat_Info.heat_level = HEAT_LEVEL_OFF;break;
-                    case 1 : Passenger_Seat_Info.heat_level = HEAT_LEVEL_LOW;break;
-                    case 2 : Passenger_Seat_Info.heat_level = HEAT_LEVEL_MED;break;
-                    case 3 : Passenger_Seat_Info.heat_level = HEAT_LEVEL_HIGH;break;
+                    case 0 : Passenger_Seat_Info.heat_level = HEAT_LEVEL_OFF;  Passenger_Seat_HeatingLevel = "OFF"; break;
+                    case 1 : Passenger_Seat_Info.heat_level = HEAT_LEVEL_LOW;  Passenger_Seat_HeatingLevel = "LOW"; break;
+                    case 2 : Passenger_Seat_Info.heat_level = HEAT_LEVEL_MED;  Passenger_Seat_HeatingLevel = "MED"; break;
+                    case 3 : Passenger_Seat_Info.heat_level = HEAT_LEVEL_HIGH; Passenger_Seat_HeatingLevel = "HIGH"; break;
                     default: break;
                     }
                     xSemaphoreGive(xPassengerStructMutex);
@@ -267,7 +276,6 @@ void vDriverHeaterTask(void *pvParameters)
 
     for (;;)
     {
-        vTaskDelay(pdMS_TO_TICKS(1000));
         if( xQueueReceive(xQueueDriverTemperature, &current_received_temperature, portMAX_DELAY) == pdTRUE ){
 
             if(xSemaphoreTake(xDriverStructMutex,portMAX_DELAY)==pdTRUE){
@@ -275,23 +283,20 @@ void vDriverHeaterTask(void *pvParameters)
                 Driver_Seat_Info.current_temp = current_received_temperature;
 
                 switch(Driver_Seat_Info.heat_level){
-                case HEAT_LEVEL_OFF :  Driver_Seat_Info.desired_temp = HEAT_LEVEL_OFF_DESIRED_TEMP;   break;
-                case HEAT_LEVEL_LOW :  Driver_Seat_Info.desired_temp = HEAT_LEVEL_LOW_DESIRED_TEMP;   break;
-                case HEAT_LEVEL_MED :  Driver_Seat_Info.desired_temp = HEAT_LEVEL_MED_DESIRED_TEMP;   break;
+                case HEAT_LEVEL_OFF :  Driver_Seat_Info.desired_temp = HEAT_LEVEL_OFF_DESIRED_TEMP;  break;
+                case HEAT_LEVEL_LOW :  Driver_Seat_Info.desired_temp = HEAT_LEVEL_LOW_DESIRED_TEMP;  break;
+                case HEAT_LEVEL_MED :  Driver_Seat_Info.desired_temp = HEAT_LEVEL_MED_DESIRED_TEMP;  break;
                 case HEAT_LEVEL_HIGH : Driver_Seat_Info.desired_temp = HEAT_LEVEL_HIGH_DESIRED_TEMP; break;
                 default: break;
                 }
                 xSemaphoreGive(xDriverStructMutex);
+
             }
             if( (Driver_Seat_Info.current_temp > 40) || (Driver_Seat_Info.current_temp <5) ){
                 Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_OFF;
                 vTaskSuspend(xDriverHeaterHandlerTaskHandle);
-                if(xSemaphoreTake(xUARTMutex,portMAX_DELAY)==pdTRUE){
-                    UART0_SendString("ERROR In Driver Temperature Reading!! \r\n");
-                }
                 GPIO_PORTF_Leds_Off();
                 GPIO_RedLedOn();
-                xSemaphoreGive(xUARTMutex);
             }
             else{
                 vTaskResume(xDriverHeaterHandlerTaskHandle);
@@ -307,31 +312,29 @@ void vPassengerHeaterTask(void *pvParameters)
     uint8_t   current_received_temperature = 0;
     for (;;)
     {
-        vTaskDelay(pdMS_TO_TICKS(1000));
         if( xQueueReceive(xQueuePassengerTemperature, &current_received_temperature, portMAX_DELAY) == pdTRUE ){
 
             if(xSemaphoreTake(xPassengerStructMutex,portMAX_DELAY)==pdTRUE){
 
                 Passenger_Seat_Info.current_temp = current_received_temperature;
+                Passenger_Seat_CurrentTemp = current_received_temperature;
 
                 switch(Passenger_Seat_Info.heat_level){
                 case HEAT_LEVEL_OFF :  Passenger_Seat_Info.desired_temp = HEAT_LEVEL_OFF_DESIRED_TEMP;   break;
                 case HEAT_LEVEL_LOW :  Passenger_Seat_Info.desired_temp = HEAT_LEVEL_LOW_DESIRED_TEMP;   break;
                 case HEAT_LEVEL_MED :  Passenger_Seat_Info.desired_temp = HEAT_LEVEL_MED_DESIRED_TEMP;   break;
-                case HEAT_LEVEL_HIGH : Passenger_Seat_Info.desired_temp = HEAT_LEVEL_HIGH_DESIRED_TEMP; break;
+                case HEAT_LEVEL_HIGH : Passenger_Seat_Info.desired_temp = HEAT_LEVEL_HIGH_DESIRED_TEMP;  break;
                 default: break;
                 }
                 xSemaphoreGive(xPassengerStructMutex);
+
             }
             if( (Passenger_Seat_Info.current_temp > 40) || (Passenger_Seat_Info.current_temp <5) ){
                 Passenger_Seat_Info.heater_output_signal = HEAT_OUTPUT_OFF;
                 vTaskSuspend(xPassengerHeaterHandlerTaskHandle);
-                if(xSemaphoreTake(xUARTMutex,portMAX_DELAY)==pdTRUE){
-                    UART0_SendString("ERROR In Passenger Temperature Reading!! \r\n");
-                }
                 GPIO_PORTA_Leds_Off();
                 GPIO_PORTA_RedLedOn();
-                xSemaphoreGive(xUARTMutex);
+
             }
             else{
                 vTaskResume(xPassengerHeaterHandlerTaskHandle);
@@ -349,48 +352,57 @@ void vDriverHeaterHandlerTask(void *pvParameters)
 
     for (;;)
     {
-        vTaskDelay(pdMS_TO_TICKS(1000));
         if (xSemaphoreTake(xDriverBinarySemaphore,portMAX_DELAY)==pdTRUE ){
 
             if( xSemaphoreTake(xDriverStructMutex,portMAX_DELAY)==pdTRUE ){
 
                 current_received_temp = Driver_Seat_Info.current_temp;
                 desired_received_temp = Driver_Seat_Info.desired_temp;
+                Driver_Seat_CurrentTemp = current_received_temp;
+                Driver_Seat_DesiredTemp = desired_received_temp;
+
                 delta_temp = current_received_temp - desired_received_temp ;
 
                 if( delta_temp <= (-10) ){
                     Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_HIGH;  /*Cyan*/
+                    Driver_Seat_HeaterState="HIGH";
                     GPIO_PORTF_Leds_Off();
                     GPIO_GreenLedOn();
                     GPIO_BlueLedOn();
-                    Delay_MS(500);
+                    //Delay_MS(100);
 
                 }
                 else if( (delta_temp <= (-5)) && (delta_temp > (-10))  ){
                     Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_MED; /*Blue*/
+                    Driver_Seat_HeaterState="MED";
                     GPIO_PORTF_Leds_Off();
                     GPIO_BlueLedOn();
-                    Delay_MS(500);
+                    //Delay_MS(100);
 
                 }
                 else if( (delta_temp <= (-2)) && (delta_temp > (-5))  ){
                     Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_LOW; /*Green*/
+                    Driver_Seat_HeaterState="LOW";
                     GPIO_PORTF_Leds_Off();
                     GPIO_GreenLedOn();
-                    Delay_MS(500);
+                    //Delay_MS(100);
 
                 }
                 else if( delta_temp > (-2) ){
                     Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_OFF;
+                    Driver_Seat_HeaterState="OFF";
                     GPIO_PORTF_Leds_Off();
-                    Delay_MS(500);
+                    //Delay_MS(100);
 
                 }
                 else{
 
                 }
+
                 xSemaphoreGive(xDriverStructMutex);
+
             }
+            xSemaphoreGive(xUpdateDriverBinarySemaphore);
         }
     }
 }
@@ -403,48 +415,57 @@ void vPassengerHeaterHandlerTask(void *pvParameters)
 
     for (;;)
     {
-        vTaskDelay(pdMS_TO_TICKS(1000));
         if (xSemaphoreTake(xPassengerBinarySemaphore,portMAX_DELAY)==pdTRUE ){
 
             if( xSemaphoreTake(xPassengerStructMutex,portMAX_DELAY)==pdTRUE ){
 
                 current_received_temp = Passenger_Seat_Info.current_temp;
                 desired_received_temp = Passenger_Seat_Info.desired_temp;
+                Passenger_Seat_CurrentTemp = current_received_temp;
+                Passenger_Seat_DesiredTemp = desired_received_temp;
                 delta_temp = current_received_temp - desired_received_temp ;
 
                 if( delta_temp <= (-10) ){
                     Passenger_Seat_Info.heater_output_signal = HEAT_OUTPUT_HIGH;
+                    Passenger_Seat_HeaterState="HIGH";
                     GPIO_PORTA_Leds_Off();
                     GPIO_PORTA_GreenLedOn();
                     GPIO_PORTA_BlueLedOn();
-                    Delay_MS(500);
+                    //Delay_MS(100);
 
                 }
                 else if( (delta_temp <= (-5)) && (delta_temp > (-10))  ){
                     Passenger_Seat_Info.heater_output_signal = HEAT_OUTPUT_MED;
+                    Passenger_Seat_HeaterState="MED";
                     GPIO_PORTA_Leds_Off();
                     GPIO_PORTA_BlueLedOn();
-                    Delay_MS(500);
+                    //Delay_MS(100);
 
                 }
                 else if( (delta_temp <= (-2)) && (delta_temp > (-5))  ){
                     Passenger_Seat_Info.heater_output_signal = HEAT_OUTPUT_LOW;
+                    Passenger_Seat_HeaterState="LOW";
                     GPIO_PORTA_Leds_Off();
                     GPIO_PORTA_GreenLedOn();
-                    Delay_MS(500);
+                    //Delay_MS(100);
 
                 }
                 else if( delta_temp > (-2) ){
                     Passenger_Seat_Info.heater_output_signal = HEAT_OUTPUT_OFF;
+                    Passenger_Seat_HeaterState="OFF";
                     GPIO_PORTA_Leds_Off();
-                    Delay_MS(500);
+                    //Delay_MS(100);
 
                 }
                 else{
 
                 }
+
                 xSemaphoreGive(xPassengerStructMutex);
+
+
             }
+            xSemaphoreGive(xUpdatePassengerBinarySemaphore);
         }
     }
 }
@@ -452,12 +473,13 @@ void vPassengerHeaterHandlerTask(void *pvParameters)
 void vDriverTempTask(void *pvParameters)
 
 {
-    uint8_t current_received_temperature = 25;
+    uint8_t current_received_temperature = 10;
     for (;;)
     {
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        vTaskDelay(pdMS_TO_TICKS(1000));
         //current_received_temperature = (rand()%35)+5;                   /*Random Number From 5 to 40*/ /*TODO: input from Potentiometer*/
-        current_received_temperature = rand()%45;
+        //current_received_temperature = rand()%45;
+        (current_received_temperature == 41)? (current_received_temperature = 32) : (current_received_temperature++) ;
         xQueueSend(xQueueDriverTemperature,&current_received_temperature,portMAX_DELAY);
     }
 }
@@ -465,12 +487,13 @@ void vDriverTempTask(void *pvParameters)
 void vPassengerTempTask(void *pvParameters)
 
 {
-    uint8_t current_received_temperature = 25;
+    uint8_t current_received_temperature = 10;
     for (;;)
     {
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        vTaskDelay(pdMS_TO_TICKS(1000));
         //current_received_temperature = (rand()%35)+5;                   /*Random Number From 5 to 40*/ /*TODO: input from Potentiometer*/
-        current_received_temperature = rand()%45;
+        //current_received_temperature = rand()%45;
+        (current_received_temperature == 41)? (current_received_temperature = 32) : (current_received_temperature++) ;
         xQueueSend(xQueuePassengerTemperature,&current_received_temperature,portMAX_DELAY);
     }
 }
@@ -479,59 +502,41 @@ void vScreenTask(void *pvParameters)
 {
     for (;;)
     {
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        if( (xSemaphoreTake(xUpdateDriverBinarySemaphore,portMAX_DELAY)== pdTRUE)  && (xSemaphoreTake(xUpdatePassengerBinarySemaphore,portMAX_DELAY)== pdTRUE)  ){
 
-        if(xSemaphoreTake(xUARTMutex,portMAX_DELAY)==pdTRUE){
-            if(  (xSemaphoreTake(xDriverStructMutex,portMAX_DELAY)==pdTRUE) && xSemaphoreTake(xPassengerStructMutex,portMAX_DELAY)==pdTRUE   ){
+            if(xSemaphoreTake(xUARTMutex,portMAX_DELAY)==pdTRUE){
 
-                UART_Driver_Seat_Info.seat = "DRIVER_SEAT";
+                    UART0_SendString("Driver Seat: \r\n");
+                    UART0_SendString("Current Temperature is: ");
+                    UART0_SendInteger(Driver_Seat_CurrentTemp);
+                    UART0_SendString("\r\n");
+                    UART0_SendString("Desired Temperature is: ");
+                    UART0_SendInteger(Driver_Seat_DesiredTemp);
+                    UART0_SendString("\r\n");
+                    UART0_SendString("Received Heat Level: ");
+                    UART0_SendString(Driver_Seat_HeatingLevel);
+                    UART0_SendString("\r\n");
+                    UART0_SendString("Output Signal is: ");
+                    UART0_SendString(Driver_Seat_HeaterState);
+                    UART0_SendString("\r\n");
+                    UART0_SendString( "-------------------------------------------\r\n" );
+                    UART0_SendString("Passenger Seat: \r\n");
+                    UART0_SendString("Current Temperature is: ");
+                    UART0_SendInteger(Passenger_Seat_CurrentTemp);
+                    UART0_SendString("\r\n");
+                    UART0_SendString("Desired Temperature is: ");
+                    UART0_SendInteger(Passenger_Seat_DesiredTemp);
+                    UART0_SendString("\r\n");
+                    UART0_SendString("Received Heat Level: ");
+                    UART0_SendString(Passenger_Seat_HeatingLevel);
+                    UART0_SendString("\r\n");
+                    UART0_SendString("Output Signal is: ");
+                    UART0_SendString(Passenger_Seat_HeaterState);
+                    UART0_SendString("\r\n");
+                    UART0_SendString( "-------------------------------------------\r\n" );
 
-                (Driver_Seat_Info.heat_level == HEAT_LEVEL_OFF)  ? (UART_Driver_Seat_Info.heat_level="OFF") :
-                (Driver_Seat_Info.heat_level == HEAT_LEVEL_LOW)  ? (UART_Driver_Seat_Info.heat_level="LOW"):
-                (Driver_Seat_Info.heat_level == HEAT_LEVEL_MED)  ? (UART_Driver_Seat_Info.heat_level="MED"):
-                (Driver_Seat_Info.heat_level == HEAT_LEVEL_HIGH) ? (UART_Driver_Seat_Info.heat_level="HIGH"):(UART_Driver_Seat_Info.heat_level="INVALID");
-
-                (Driver_Seat_Info.heater_output_signal == HEAT_OUTPUT_OFF)  ? (UART_Driver_Seat_Info.heater_output_signal="HEAT_OUTPUT_OFF") :
-                (Driver_Seat_Info.heater_output_signal == HEAT_OUTPUT_LOW)  ? (UART_Driver_Seat_Info.heater_output_signal="HEAT_OUTPUT_LOW") :
-                (Driver_Seat_Info.heater_output_signal == HEAT_OUTPUT_MED)  ? (UART_Driver_Seat_Info.heater_output_signal="HEAT_OUTPUT_MED") :
-                (Driver_Seat_Info.heater_output_signal == HEAT_OUTPUT_HIGH)  ? (UART_Driver_Seat_Info.heater_output_signal="HEAT_OUTPUT_HIGH") :(UART_Driver_Seat_Info.heater_output_signal="INVALID");
-
-                UART_Driver_Seat_Info.seat = "PASSENGER_SEAT";
-                (Passenger_Seat_Info.heat_level == HEAT_LEVEL_OFF)  ? (UART_Passenger_Seat_Info.heat_level="OFF") :
-                (Passenger_Seat_Info.heat_level == HEAT_LEVEL_LOW)  ? (UART_Passenger_Seat_Info.heat_level="LOW"):
-                (Passenger_Seat_Info.heat_level == HEAT_LEVEL_MED)  ? (UART_Passenger_Seat_Info.heat_level="MED"):
-                (Passenger_Seat_Info.heat_level == HEAT_LEVEL_HIGH) ? (UART_Passenger_Seat_Info.heat_level="HIGH"):(UART_Passenger_Seat_Info.heat_level="INVALID");
-
-                (Passenger_Seat_Info.heater_output_signal == HEAT_OUTPUT_OFF)  ? (UART_Passenger_Seat_Info.heater_output_signal="HEAT_OUTPUT_OFF") :
-                (Passenger_Seat_Info.heater_output_signal == HEAT_OUTPUT_LOW)  ? (UART_Passenger_Seat_Info.heater_output_signal="HEAT_OUTPUT_LOW") :
-                (Passenger_Seat_Info.heater_output_signal == HEAT_OUTPUT_MED)  ? (UART_Passenger_Seat_Info.heater_output_signal="HEAT_OUTPUT_MED") :
-                (Passenger_Seat_Info.heater_output_signal == HEAT_OUTPUT_HIGH)  ? (UART_Passenger_Seat_Info.heater_output_signal="HEAT_OUTPUT_HIGH") :(UART_Passenger_Seat_Info.heater_output_signal="INVALID");
-
-                UART0_SendString("Driver Seat: \r\n");
-                UART0_SendString("Current Temperature is: ");
-                UART0_SendInteger(Driver_Seat_Info.current_temp);
-                UART0_SendString(" and Desired Temperature is: ");
-                UART0_SendInteger(Driver_Seat_Info.desired_temp);
-                UART0_SendString(" and Received Heat Level: ");
-                UART0_SendString(UART_Driver_Seat_Info.heat_level);
-                UART0_SendString(" and Output Signal is: ");
-                UART0_SendString(UART_Driver_Seat_Info.heater_output_signal);
-                UART0_SendString("\r\n");
-                UART0_SendString("Passenger Seat: \r\n");
-                UART0_SendString("Current Temperature is: ");
-                UART0_SendInteger(Passenger_Seat_Info.current_temp);
-                UART0_SendString(" and Desired Temperature is: ");
-                UART0_SendInteger(Passenger_Seat_Info.desired_temp);
-                UART0_SendString(" and Received Heat Level: ");
-                UART0_SendString(UART_Passenger_Seat_Info.heat_level);
-                UART0_SendString(" and Output Signal is: ");
-                UART0_SendString(UART_Passenger_Seat_Info.heater_output_signal);
-                UART0_SendString("\r\n");
+                    xSemaphoreGive(xUARTMutex);
             }
-
-            xSemaphoreGive(xUARTMutex);
-            xSemaphoreGive(xDriverStructMutex);
-            xSemaphoreGive(xPassengerStructMutex);
         }
     }
 }
@@ -543,14 +548,12 @@ void vRunTimeMeasurementsTask(void *pvParameters){
 
     for(;;){
 
-        vTaskDelayUntil(&xLastWakeTime, 1000);
-
+        vTaskDelayUntil(&xLastWakeTime, 2000);
         uint8 ucCounter, ucCPU_Load;
         uint32 ullTotalTasksTime = 0;
 
         if(xSemaphoreTake(xUARTMutex,portMAX_DELAY)==pdTRUE){
         UART0_SendString("----------------Run Time Measurements----------------\r\n");
-
 
         for(ucCounter = 1; ucCounter < 10; ucCounter++)
         {
@@ -568,41 +571,36 @@ void vRunTimeMeasurementsTask(void *pvParameters){
         taskEXIT_CRITICAL();
 
         UART0_SendString("Button Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[1] / 10);
+        UART0_SendInteger(ullTasksExecutionTime[1] /10 );
         UART0_SendString(" msec \r\n");
 
         UART0_SendString("Driver Heater Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[2] / 10);
+        UART0_SendInteger(ullTasksExecutionTime[2] /10 );
         UART0_SendString(" msec \r\n");
 
         UART0_SendString("Passenger Heater Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[3] / 10);
+        UART0_SendInteger(ullTasksExecutionTime[3] /10 );
         UART0_SendString(" msec \r\n");
 
         UART0_SendString("Driver Handler Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[4] / 10);
+        UART0_SendInteger(ullTasksExecutionTime[4] /10 );
         UART0_SendString(" msec \r\n");
 
         UART0_SendString("Passenger Handler Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[5] / 10);
+        UART0_SendInteger(ullTasksExecutionTime[5] /10 );
         UART0_SendString(" msec \r\n");
 
         UART0_SendString("Driver Temp Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[6] / 10);
+        UART0_SendInteger(ullTasksExecutionTime[6] /10 );
         UART0_SendString(" msec \r\n");
 
         UART0_SendString("Passenger Temp Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[7] / 10);
+        UART0_SendInteger(ullTasksExecutionTime[7] /10);
         UART0_SendString(" msec \r\n");
 
         UART0_SendString("Screen Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[8] / 10);
+        UART0_SendInteger(ullTasksExecutionTime[8] /10 );
         UART0_SendString(" msec \r\n");
-
-        UART0_SendString("Run Time Measurements Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[9] / 10);
-        UART0_SendString(" msec \r\n");
-
         UART0_SendString("------------------------------------------------\r\n");
 
         xSemaphoreGive(xUARTMutex);
