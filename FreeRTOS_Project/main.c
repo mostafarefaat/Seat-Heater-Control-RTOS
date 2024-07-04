@@ -553,6 +553,7 @@ void vRunTimeMeasurementsTask(void *pvParameters){
         uint32 ullTotalTasksTime = 0;
 
         if(xSemaphoreTake(xUARTMutex,portMAX_DELAY)==pdTRUE){
+		taskENTER_CRITICAL();
         UART0_SendString("----------------Run Time Measurements----------------\r\n");
 
         for(ucCounter = 1; ucCounter < 10; ucCounter++)
@@ -561,48 +562,54 @@ void vRunTimeMeasurementsTask(void *pvParameters){
         }
         ucCPU_Load = (ullTotalTasksTime * 100) /  GPTM_WTimer0Read();
 
-        taskENTER_CRITICAL();
-        UART0_SendString("Total Time is ");
-        UART0_SendInteger(ullTotalTasksTime);
-        UART0_SendString("\r\n");
+        
         UART0_SendString("Total CPU Load is ");
         UART0_SendInteger(ucCPU_Load);
         UART0_SendString("% \r\n");
-        taskEXIT_CRITICAL();
+        
 
-        UART0_SendString("Button Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[1] /10 );
-        UART0_SendString(" msec \r\n");
+		UART0_SendString("Button execution time is: ");
+		if( (ullTasksExecutionTime[1] / 10) == 0 )  { ullTasksExecutionTime[1] = 1;}
+		UART0_SendInteger( ullTasksExecutionTime[1] );
+		UART0_SendString(" msec \r\n");
 
-        UART0_SendString("Driver Heater Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[2] /10 );
-        UART0_SendString(" msec \r\n");
+		UART0_SendString("Driver Heater execution time is: ");
+		if( (ullTasksExecutionTime[2] / 10) == 0 )  { ullTasksExecutionTime[2] = 1;}
+		UART0_SendInteger(ullTasksExecutionTime[2] );
+		UART0_SendString(" msec \r\n");
 
-        UART0_SendString("Passenger Heater Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[3] /10 );
-        UART0_SendString(" msec \r\n");
+		UART0_SendString("Passenger Heater execution time is: ");
+		if( (ullTasksExecutionTime[3] / 10) == 0 )  { ullTasksExecutionTime[3] = 1;}
+		UART0_SendInteger(ullTasksExecutionTime[3] );
+		UART0_SendString(" msec \r\n");
 
-        UART0_SendString("Driver Handler Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[4] /10 );
-        UART0_SendString(" msec \r\n");
+		UART0_SendString("Driver Handler execution time is: ");
+		if( (ullTasksExecutionTime[4] / 10) == 0 )  { ullTasksExecutionTime[4] = 1;}
+		UART0_SendInteger(ullTasksExecutionTime[4] );
+		UART0_SendString(" msec \r\n");
 
-        UART0_SendString("Passenger Handler Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[5] /10 );
-        UART0_SendString(" msec \r\n");
+		UART0_SendString("Passenger Handler execution time is: ");
+		if( (ullTasksExecutionTime[5] / 10) == 0 )  { ullTasksExecutionTime[5] = 1;}
+		UART0_SendInteger(ullTasksExecutionTime[5] );
+		UART0_SendString(" msec \r\n");
 
-        UART0_SendString("Driver Temp Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[6] /10 );
-        UART0_SendString(" msec \r\n");
+		UART0_SendString("Driver Temp execution time is: ");
+		if( (ullTasksExecutionTime[6] / 10) == 0 )  { ullTasksExecutionTime[6] = 1;}
+		UART0_SendInteger(ullTasksExecutionTime[6] );
+		UART0_SendString(" msec \r\n");
 
-        UART0_SendString("Passenger Temp Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[7] /10);
-        UART0_SendString(" msec \r\n");
+		UART0_SendString("Passenger Temp execution time is: ");
+		if( (ullTasksExecutionTime[7] / 10) == 0 )  { ullTasksExecutionTime[7] = 1;}
+		UART0_SendInteger(ullTasksExecutionTime[7] );
+		UART0_SendString(" msec \r\n");
 
-        UART0_SendString("Screen Task execution time is ");
-        UART0_SendInteger(ullTasksExecutionTime[8] /10 );
-        UART0_SendString(" msec \r\n");
-        UART0_SendString("------------------------------------------------\r\n");
+		UART0_SendString("Screen execution time is: ");
+		UART0_SendInteger(ullTasksExecutionTime[8] /10 );
+		UART0_SendString(" msec \r\n");
+		UART0_SendString("------------------------------------------------\r\n");
 
+		taskEXIT_CRITICAL();
+		
         xSemaphoreGive(xUARTMutex);
         }
 
