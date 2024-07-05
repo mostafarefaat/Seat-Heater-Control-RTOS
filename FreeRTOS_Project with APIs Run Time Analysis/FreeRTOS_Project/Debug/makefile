@@ -20,6 +20,7 @@ ORDERED_OBJS += \
 "./FreeRTOS/Source/portable/CCS/ARM_CM4F/port.obj" \
 "./FreeRTOS/Source/portable/CCS/ARM_CM4F/portasm.obj" \
 "./FreeRTOS/Source/portable/MemMang/heap_2.obj" \
+"./MCAL/ADC/adc.obj" \
 "./MCAL/GPIO/gpio.obj" \
 "./MCAL/GPTM/GPTM.obj" \
 "./MCAL/UART/uart0.obj" \
@@ -38,6 +39,7 @@ RMDIR := RMDIR /S/Q
 -include FreeRTOS/Source/subdir_vars.mk
 -include FreeRTOS/Source/portable/CCS/ARM_CM4F/subdir_vars.mk
 -include FreeRTOS/Source/portable/MemMang/subdir_vars.mk
+-include MCAL/ADC/subdir_vars.mk
 -include MCAL/GPIO/subdir_vars.mk
 -include MCAL/GPTM/subdir_vars.mk
 -include MCAL/UART/subdir_vars.mk
@@ -45,6 +47,7 @@ RMDIR := RMDIR /S/Q
 -include FreeRTOS/Source/subdir_rules.mk
 -include FreeRTOS/Source/portable/CCS/ARM_CM4F/subdir_rules.mk
 -include FreeRTOS/Source/portable/MemMang/subdir_rules.mk
+-include MCAL/ADC/subdir_rules.mk
 -include MCAL/GPIO/subdir_rules.mk
 -include MCAL/GPTM/subdir_rules.mk
 -include MCAL/UART/subdir_rules.mk
@@ -165,8 +168,8 @@ FreeRTOS_Project.out: $(OBJS) $(CMD_SRCS) $(GEN_CMDS)
 # Other Targets
 clean:
 	-$(RM) $(EXE_OUTPUTS__QUOTED)
-	-$(RM) "main.obj" "tm4c123gh6pm_startup_ccs.obj" "FreeRTOS\Source\event_groups.obj" "FreeRTOS\Source\list.obj" "FreeRTOS\Source\queue.obj" "FreeRTOS\Source\tasks.obj" "FreeRTOS\Source\timers.obj" "FreeRTOS\Source\portable\CCS\ARM_CM4F\port.obj" "FreeRTOS\Source\portable\CCS\ARM_CM4F\portasm.obj" "FreeRTOS\Source\portable\MemMang\heap_2.obj" "MCAL\GPIO\gpio.obj" "MCAL\GPTM\GPTM.obj" "MCAL\UART\uart0.obj" 
-	-$(RM) "main.d" "tm4c123gh6pm_startup_ccs.d" "FreeRTOS\Source\event_groups.d" "FreeRTOS\Source\list.d" "FreeRTOS\Source\queue.d" "FreeRTOS\Source\tasks.d" "FreeRTOS\Source\timers.d" "FreeRTOS\Source\portable\CCS\ARM_CM4F\port.d" "FreeRTOS\Source\portable\MemMang\heap_2.d" "MCAL\GPIO\gpio.d" "MCAL\GPTM\GPTM.d" "MCAL\UART\uart0.d" 
+	-$(RM) "main.obj" "tm4c123gh6pm_startup_ccs.obj" "FreeRTOS\Source\event_groups.obj" "FreeRTOS\Source\list.obj" "FreeRTOS\Source\queue.obj" "FreeRTOS\Source\tasks.obj" "FreeRTOS\Source\timers.obj" "FreeRTOS\Source\portable\CCS\ARM_CM4F\port.obj" "FreeRTOS\Source\portable\CCS\ARM_CM4F\portasm.obj" "FreeRTOS\Source\portable\MemMang\heap_2.obj" "MCAL\ADC\adc.obj" "MCAL\GPIO\gpio.obj" "MCAL\GPTM\GPTM.obj" "MCAL\UART\uart0.obj" 
+	-$(RM) "main.d" "tm4c123gh6pm_startup_ccs.d" "FreeRTOS\Source\event_groups.d" "FreeRTOS\Source\list.d" "FreeRTOS\Source\queue.d" "FreeRTOS\Source\tasks.d" "FreeRTOS\Source\timers.d" "FreeRTOS\Source\portable\CCS\ARM_CM4F\port.d" "FreeRTOS\Source\portable\MemMang\heap_2.d" "MCAL\ADC\adc.d" "MCAL\GPIO\gpio.d" "MCAL\GPTM\GPTM.d" "MCAL\UART\uart0.d" 
 	-$(RM) "FreeRTOS\Source\portable\CCS\ARM_CM4F\portasm.d" 
 	-@echo 'Finished clean'
 	-@echo ' '

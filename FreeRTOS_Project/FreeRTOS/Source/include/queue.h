@@ -42,6 +42,8 @@
 
 #include "task.h"
 
+
+
 /**
  * Type by which queues are referenced.  For example, a call to xQueueCreate()
  * returns an QueueHandle_t variable that can then be used as a parameter to
@@ -63,6 +65,8 @@ typedef struct QueueDefinition   * QueueSetHandle_t;
  * return value can be either an QueueHandle_t or an SemaphoreHandle_t.
  */
 typedef struct QueueDefinition   * QueueSetMemberHandle_t;
+
+/*-------------------------------*/
 
 /* For internal use only. */
 #define queueSEND_TO_BACK                     ( ( BaseType_t ) 0 )

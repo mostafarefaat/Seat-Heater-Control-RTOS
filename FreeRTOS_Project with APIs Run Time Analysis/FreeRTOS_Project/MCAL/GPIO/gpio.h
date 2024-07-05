@@ -16,8 +16,8 @@
 #include "std_types.h"
 
 #define GPIO_PORTF_PRIORITY_MASK      0xFF1FFFFF
-#define GPIO_PORTF_PRIORITY_BITS_POS  21
-#define GPIO_PORTF_INTERRUPT_PRIORITY 5
+#define GPIO_PORTF_PRIORITY_BITS_POS     21
+#define GPIO_PORTF_INTERRUPT_PRIORITY    5
 
 #define PRESSED                ((uint8)0x00)
 #define RELEASED               ((uint8)0x01)

@@ -29,6 +29,7 @@ main.obj: D:/Embedded\ Advanced\ Diploma/FreeRTOS_Project/FreeRTOS/Source/includ
 main.obj: D:/Embedded\ Advanced\ Diploma/FreeRTOS_Project/FreeRTOS/Source/include/timers.h
 main.obj: D:/Embedded\ Advanced\ Diploma/FreeRTOS_Project/MCAL/GPIO/gpio.h
 main.obj: D:/Embedded\ Advanced\ Diploma/FreeRTOS_Project/MCAL/UART/uart0.h
+main.obj: D:/Embedded\ Advanced\ Diploma/FreeRTOS_Project/MCAL/ADC/adc.h
 main.obj: D:/Embedded\ Advanced\ Diploma/FreeRTOS_Project/MCAL/tm4c123gh6pm_registers.h
 
 ../main.c:
@@ -88,6 +89,8 @@ D:/Embedded\ Advanced\ Diploma/FreeRTOS_Project/FreeRTOS/Source/include/timers.h
 D:/Embedded\ Advanced\ Diploma/FreeRTOS_Project/MCAL/GPIO/gpio.h:
 
 D:/Embedded\ Advanced\ Diploma/FreeRTOS_Project/MCAL/UART/uart0.h:
+
+D:/Embedded\ Advanced\ Diploma/FreeRTOS_Project/MCAL/ADC/adc.h:
 
 D:/Embedded\ Advanced\ Diploma/FreeRTOS_Project/MCAL/tm4c123gh6pm_registers.h:
 

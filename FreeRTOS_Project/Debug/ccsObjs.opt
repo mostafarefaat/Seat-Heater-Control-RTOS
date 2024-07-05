@@ -8,6 +8,7 @@
 "./FreeRTOS/Source/portable/CCS/ARM_CM4F/port.obj"
 "./FreeRTOS/Source/portable/CCS/ARM_CM4F/portasm.obj"
 "./FreeRTOS/Source/portable/MemMang/heap_2.obj"
+"./MCAL/ADC/adc.obj"
 "./MCAL/GPIO/gpio.obj"
 "./MCAL/GPTM/GPTM.obj"
 "./MCAL/UART/uart0.obj"

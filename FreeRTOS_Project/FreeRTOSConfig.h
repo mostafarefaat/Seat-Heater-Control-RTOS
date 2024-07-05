@@ -168,7 +168,7 @@ do{                                                                             
     uint32 taskOutTag = (uint32)(pxCurrentTCB->pxTaskTag);                                       \
     ullTasksOutTime[taskOutTag] = GPTM_WTimer0Read();                                            \
     ullTasksTotalTime[taskOutTag] += ullTasksOutTime[taskOutTag] - ullTasksInTime[taskOutTag];   \
-    ullTasksExecutionTime[taskOutTag] = ullTasksOutTime[taskOutTag] - ullTasksInTime[taskOutTag];\
+    ullTasksExecutionTime[taskOutTag] = ullTasksOutTime[taskOutTag] - ullTasksInTime[taskOutTag]; \
 }while(0);
 
 #endif /* FREERTOS_CONFIG_H */

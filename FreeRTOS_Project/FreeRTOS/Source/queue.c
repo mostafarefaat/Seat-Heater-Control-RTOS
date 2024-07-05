@@ -861,8 +861,10 @@ BaseType_t xQueueGenericSend( QueueHandle_t xQueue,
              * highest priority task wanting to access the queue.  If the head item
              * in the queue is to be overwritten then it does not matter if the
              * queue is full. */
+
             if( ( pxQueue->uxMessagesWaiting < pxQueue->uxLength ) || ( xCopyPosition == queueOVERWRITE ) )
             {
+
                 traceQUEUE_SEND( pxQueue );
 
                 #if ( configUSE_QUEUE_SETS == 1 )

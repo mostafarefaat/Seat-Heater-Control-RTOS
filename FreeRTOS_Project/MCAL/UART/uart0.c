@@ -83,7 +83,7 @@ uint8 UART0_ReceiveByte(void)
     return UART0_DR_REG; /* Read the byte */
 }
 
-void UART0_SendString(const uint8 *pData)
+void UART0_SendString( const uint8 *pData)
 {
     uint32 uCounter =0;
 	/* Transmit the whole string */

@@ -115,6 +115,7 @@ SUBDIRS := \
 FreeRTOS/Source \
 FreeRTOS/Source/portable/CCS/ARM_CM4F \
 FreeRTOS/Source/portable/MemMang \
+MCAL/ADC \
 MCAL/GPIO \
 MCAL/GPTM \
 MCAL/UART \
