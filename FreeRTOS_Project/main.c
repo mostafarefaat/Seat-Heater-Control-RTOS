@@ -102,6 +102,7 @@ typedef struct{
    uint32  ErrorTime;
    uint8   *Error;
    uint8   *HeatingLevel;
+   uint8   SensorReading;
 }Error_Info;
 
 /*Seat Info Structure*/
@@ -114,8 +115,8 @@ typedef struct{
 }Input_Info;
 
 /*Create Seat_Info Struct*/
-Input_Info Driver_Seat_Info    = {0,HEAT_LEVEL_HIGH,0,0};
-Input_Info Passenger_Seat_Info = {0,HEAT_LEVEL_HIGH,0,0};
+Input_Info Driver_Seat_Info    = {0,0,0,0};
+Input_Info Passenger_Seat_Info = {0,0,0,0};
 
 /*Create Error_Info Struct*/
 Error_Info Driver_Error = {0,"",""};
@@ -124,12 +125,12 @@ Error_Info Passenger_Error = {0,"",""};
 /*UART data*/
 uint8_t    Driver_Seat_CurrentTemp ;
 uint8_t    Driver_Seat_DesiredTemp ;
-uint8_t   *Driver_Seat_HeatingLevel = "HIGH";
+uint8_t   *Driver_Seat_HeatingLevel = "";
 uint8_t   *Driver_Seat_HeaterState ;
 
 uint8_t    Passenger_Seat_CurrentTemp ;
 uint8_t    Passenger_Seat_DesiredTemp ;
-uint8_t   *Passenger_Seat_HeatingLevel= "HIGH";
+uint8_t   *Passenger_Seat_HeatingLevel= "";
 uint8_t   *Passenger_Seat_HeaterState ;
 /*---------------------------------------------------------------------------*/
 /*-----Run Time Measurements---------------------------------------*/
@@ -138,6 +139,10 @@ uint32 ullTasksOutTime[10];
 uint32 ullTasksInTime[10];
 uint32 ullTasksTotalTime[10];
 uint32 ullTasksExecutionTime[10];
+
+uint32 Resource_LockTime[5];
+uint32 Resource_UnLockTime[5];
+uint32 Resource_TotalLockTime[5];
 /*---------------------------------------------------------------------------*/
 
 int main(void)
@@ -306,14 +311,19 @@ void vDriverHeaterTask(void *pvParameters)
                 xSemaphoreGive(xDriverStructMutex);
 
             }
-            if( (Driver_Seat_Info.current_temp > 40) || (Driver_Seat_Info.current_temp <5) ){
+            if(  (Driver_Seat_Info.current_temp > 40) || (Driver_Seat_Info.current_temp <5) ){
                 Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_OFF;
+                Driver_Seat_CurrentTemp = Driver_Seat_Info.current_temp ;
                 Driver_Seat_HeaterState="OFF";
                 vTaskSuspend(xDriverHeaterHandlerTaskHandle);
                 GPIO_PORTF_Leds_Off();
                 GPIO_RedLedOn();
-                Driver_Error.ErrorTime = GPTM_WTimer0Read();
+                if(Driver_Error.ErrorTime == 0){
+                    Driver_Error.ErrorTime = GPTM_WTimer0Read();
+                }
+
                 Driver_Error.Error = "Invalid Temp";
+                Driver_Error.SensorReading = Driver_Seat_CurrentTemp;
 
                 (Driver_Seat_Info.heat_level == HEAT_LEVEL_OFF)  ? (Driver_Error.HeatingLevel="OFF") :
                 (Driver_Seat_Info.heat_level == HEAT_LEVEL_LOW)  ? (Driver_Error.HeatingLevel="LOW"):
@@ -354,14 +364,19 @@ void vPassengerHeaterTask(void *pvParameters)
                 xSemaphoreGive(xPassengerStructMutex);
 
             }
-            if( (Passenger_Seat_Info.current_temp > 40) || (Passenger_Seat_Info.current_temp <5) ){
+            if(  (Passenger_Seat_Info.current_temp > 40) || (Passenger_Seat_Info.current_temp <5)  ){
                 Passenger_Seat_Info.heater_output_signal = HEAT_OUTPUT_OFF;
+                Passenger_Seat_CurrentTemp = Passenger_Seat_Info.current_temp ;
                 Passenger_Seat_HeaterState="OFF";
                 vTaskSuspend(xPassengerHeaterHandlerTaskHandle);
                 GPIO_PORTA_Leds_Off();
                 GPIO_PORTA_RedLedOn();
-                Passenger_Error.ErrorTime = GPTM_WTimer0Read();
+                if(Passenger_Error.ErrorTime == 0){
+                    Passenger_Error.ErrorTime = GPTM_WTimer0Read();
+                }
+
                 Passenger_Error.Error = "Invalid Temp";
+                Passenger_Error.SensorReading = Passenger_Seat_CurrentTemp;
 
                 (Passenger_Seat_Info.heat_level == HEAT_LEVEL_OFF)  ? (Passenger_Error.HeatingLevel="OFF") :
                 (Passenger_Seat_Info.heat_level == HEAT_LEVEL_LOW)  ? (Passenger_Error.HeatingLevel="LOW"):
@@ -488,7 +503,7 @@ void vDriverTempTask(void *pvParameters)
     for (;;)
     {
         xQueueSend(xQueueDriverTemperature,&DriverTemperature,portMAX_DELAY);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(2000));
         ADC0_PSSI_REG |= (1<<3);        /* Enable SS3 conversion or start sampling data from AN0 */
     }
 }
@@ -498,7 +513,7 @@ void vPassengerTempTask(void *pvParameters)
     for (;;)
     {
         xQueueSend(xQueuePassengerTemperature,&PassengerTemperature,portMAX_DELAY);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(2000));
         ADC0_PSSI_REG |= (1<<2);                /* Enable SS2 conversion or start sampling data from AN0 */
     }
 }
@@ -561,7 +576,7 @@ void vRunTimeMeasurementsTask(void *pvParameters){
 
         uint8 ucCounter, ucCPU_Load;
         uint32 ullTotalTasksTime = 0;
-        vTaskDelayUntil(&xLastWakeTime, 5000);
+        vTaskDelayUntil(&xLastWakeTime, 10000);
         if(xSemaphoreTake(xUARTMutex,portMAX_DELAY)==pdTRUE){
             taskENTER_CRITICAL();
             UART0_SendString("---------------------Run Time Analysis-------------------------\r\n");
@@ -615,25 +630,49 @@ void vRunTimeMeasurementsTask(void *pvParameters){
             UART0_SendString("Screen execution time is: ");
             UART0_SendInteger(ullTasksExecutionTime[8] /10 );
             UART0_SendString(" msec \r\n");
-            UART0_SendString("-----------------------------------------------------------\r\n");
+            UART0_SendString("-------------------------Error Report------------------------\r\n");
 
             UART0_SendString("Driver Error:\r\n");
             UART0_SendString(Driver_Error.Error);
             UART0_SendString(" - At Time : ");
             UART0_SendInteger(Driver_Error.ErrorTime /10);
-            UART0_SendString(" ms");
+            UART0_SendString(" msec");
             UART0_SendString(" - At Level : ");
             UART0_SendString(Driver_Error.HeatingLevel);
-            UART0_SendString("\r\n");
+            UART0_SendString(" - Sensor Reading : ");
+            UART0_SendInteger(Driver_Error.SensorReading );
+            UART0_SendString(" deg\r\n");
             UART0_SendString("Passenger Error:\r\n");
             UART0_SendString(Passenger_Error.Error);
             UART0_SendString(" - At Time : ");
             UART0_SendInteger(Passenger_Error.ErrorTime /10);
-            UART0_SendString(" ms");
+            UART0_SendString(" msec");
             UART0_SendString(" - At Level : ");
             UART0_SendString(Passenger_Error.HeatingLevel);
-            UART0_SendString("\r\n");
-            UART0_SendString("-----------------------------------------------------------\r\n");
+            UART0_SendString(" - Sensor Reading : ");
+            UART0_SendInteger(Passenger_Error.SensorReading );
+            UART0_SendString(" deg\r\n");
+            UART0_SendString("-------------------------Resources--------------------------\r\n");
+
+            UART0_SendString("Driver Mutex Lock Time is: ");
+            if( (Resource_TotalLockTime[0] / 10) == 0 )  { Resource_TotalLockTime[0] = 1;}
+            UART0_SendInteger(Resource_TotalLockTime[0]);
+            UART0_SendString(" msec\r\n");
+            if( (Resource_TotalLockTime[1] / 10) == 0 )  { Resource_TotalLockTime[1] = 1;}
+            UART0_SendString("Passenger Mutex Lock Time is: ");
+            UART0_SendInteger(Resource_TotalLockTime[1]);
+            UART0_SendString(" msec\r\n");
+            UART0_SendString("Driver Semaphore Lock Time is: ");
+            UART0_SendInteger(Resource_TotalLockTime[2]/10);
+            UART0_SendString(" msec\r\n");
+            UART0_SendString("Passenger Semaphore Lock Time is: ");
+            UART0_SendInteger(Resource_TotalLockTime[3]/10);
+            UART0_SendString(" msec\r\n");
+            UART0_SendString("UART Mutex Lock Time is: ");
+            UART0_SendInteger(Resource_TotalLockTime[4]/10);
+            UART0_SendString(" msec\r\n");
+
+            UART0_SendString( "-------------------------------------------\r\n" );
             taskEXIT_CRITICAL();
             xSemaphoreGive(xUARTMutex);
         }

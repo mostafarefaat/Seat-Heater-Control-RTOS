@@ -152,10 +152,86 @@ PRIORITY THAN THIS! (higher priorities are lower numeric values. */
 /* RTOS Runtime Measurements. *************************************************/
 /******************************************************************************/
 
+/* Set configGENERATE_RUN_TIME_STATS to 1 to enable collection of run-time statistics.
+ * When this is done, both portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()
+ * and portGET_RUN_TIME_COUNTER_VALUE() or portALT_GET_RUN_TIME_COUNTER_VALUE(x) must also be defined. */
+#define configGENERATE_RUN_TIME_STATS                           1
+
+/* portCONFIGURE_TIMER_FOR_RUN_TIME_STATS() is defined to call the function that initializes
+   the 32-bit timer */
+#define portCONFIGURE_TIMER_FOR_RUN_TIME_STATS()        GPTM_WTimer0Init()
+
+/* portGET_RUN_TIME_COUNTER_VALUE() is defined to get the current run-time
+ * timer value. The returned time value is 32-bits long, and is formed by subtracting the
+ * current timer value from its max value because of our timer is counting down  */
+#define portGET_RUN_TIME_COUNTER_VALUE()                GPTM_WTimer0Read()
+
+/* Set to 1 to include the vTaskList() and vTaskGetRunTimeStats() functions in
+ * the build.  Set to 0 to exclude these functions from the build.  These two
+ * functions introduce a dependency on string formatting functions that would
+ * otherwise not exist - hence they are kept separate.  Defaults to 0 if left
+ * undefined. */
+#define configUSE_STATS_FORMATTING_FUNCTIONS                    1
+
+/* Set configUSE_TRACE_FACILITY to include additional task structure members
+ * are used by trace and visualization functions and tools.  Set to 0 to exclude
+ * the additional information from the structures. Defaults to 0 if left
+ * undefined. */
+#define configUSE_TRACE_FACILITY                                1
+
 extern uint32 ullTasksOutTime[10];
 extern uint32 ullTasksInTime[10];
 extern uint32 ullTasksTotalTime[10];
 extern uint32 ullTasksExecutionTime[10];
+
+extern uint32 Resource_LockTime[5];
+extern uint32 Resource_UnLockTime[5];
+extern uint32 Resource_TotalLockTime[5];
+
+
+#define traceQUEUE_RECEIVE(xQueue)                                              \
+do{                                                                             \
+    if(xQueue == xDriverStructMutex){                                           \
+        Resource_LockTime[0] =  GPTM_WTimer0Read();                             \
+    }                                                                           \
+    else if(xQueue == xPassengerStructMutex){                                   \
+            Resource_LockTime[1] = GPTM_WTimer0Read();                          \
+    }                                                                           \
+    else if(xQueue == xDriverBinarySemaphore){                                  \
+            Resource_LockTime[2] = GPTM_WTimer0Read();                          \
+    }                                                                           \
+    else if(xQueue == xPassengerBinarySemaphore){                               \
+            Resource_LockTime[3] = GPTM_WTimer0Read();                          \
+    }                                                                           \
+    else if(xQueue == xUARTMutex){                                              \
+            Resource_LockTime[4] = GPTM_WTimer0Read();                          \
+    }                                                                           \
+}while(0);
+
+#define traceQUEUE_SEND(xQueue)                                                                 \
+do{                                                                                             \
+    if(xQueue == xDriverStructMutex){                                                           \
+          Resource_UnLockTime[0] =  GPTM_WTimer0Read();                                         \
+          Resource_TotalLockTime[0] = Resource_UnLockTime[0] - Resource_LockTime[0];            \
+        }                                                                                       \
+    else if(xQueue == xPassengerStructMutex){                                                   \
+          Resource_UnLockTime[1] = GPTM_WTimer0Read();                                          \
+          Resource_TotalLockTime[1] = Resource_UnLockTime[1] - Resource_LockTime[1];            \
+    }                                                                                           \
+    else if(xQueue == xDriverBinarySemaphore){                                                  \
+          Resource_UnLockTime[2] = GPTM_WTimer0Read();                                          \
+          Resource_TotalLockTime[2] = Resource_UnLockTime[2] - Resource_LockTime[2];            \
+    }                                                                                           \
+    else if(xQueue == xPassengerBinarySemaphore){                                               \
+          Resource_UnLockTime[3] = GPTM_WTimer0Read();                                          \
+          Resource_TotalLockTime[3] = Resource_UnLockTime[3] - Resource_LockTime[3];            \
+    }                                                                                           \
+    else if(xQueue == xUARTMutex){                                                              \
+          Resource_UnLockTime[4] = GPTM_WTimer0Read();                                          \
+          Resource_TotalLockTime[4] = Resource_UnLockTime[4] - Resource_LockTime[4];            \
+    }                                                                                           \
+}while(0);
+
 
 #define traceTASK_SWITCHED_IN()                                    \
 do{                                                                \
