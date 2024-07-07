@@ -10,6 +10,7 @@
 #include "uart0.h"
 #include "GPTM.h"
 #include "adc.h"
+#include "eeprom.h"
 #include "tm4c123gh6pm_registers.h"
 
 /*---------------------------------------------------------------------------*/
@@ -35,12 +36,6 @@
 /*---------------------------------------------------------------------------*/
 uint8_t  DriverTemperature;
 uint8_t  PassengerTemperature;
-
-void Delay_MS(unsigned long long n)
-{
-    volatile unsigned long long count = 0;
-    while(count++ < (NUMBER_OF_ITERATIONS_PER_ONE_MILI_SECOND * n) );
-}
 
 /*---------------------------------------------------------------------------*/
 /* The HW setup function */
@@ -143,6 +138,33 @@ uint32 ullTasksExecutionTime[10];
 uint32 Resource_LockTime[5];
 uint32 Resource_UnLockTime[5];
 uint32 Resource_TotalLockTime[5];
+
+uint32 DriverERROR_Data[13];
+uint32 DriverERROR_Read[13];
+
+uint32 PassengerERROR_Data[13];
+uint32 PassengerERROR_Read[13];
+
+uint32 driver_error_time;
+uint32 passenger_error_time;
+
+char dr_hl_c1;
+char dr_hl_c2;
+char dr_hl_c3;
+char dr_hl_c4;
+char dr_err_c1;
+char dr_err_c2;
+char dr_err_c3;
+char dr_err_c4;
+
+char ps_hl_c1;
+char ps_hl_c2;
+char ps_hl_c3;
+char ps_hl_c4;
+char ps_err_c1;
+char ps_err_c2;
+char ps_err_c3;
+char ps_err_c4;
 /*---------------------------------------------------------------------------*/
 
 int main(void)
@@ -226,6 +248,9 @@ static void prvSetupHardware( void )
     GPTM_WTimer0Init();
     ADCInit();
     UART0_Init();
+    EEPROMInit();
+
+
 }
 /*------------------------------------------------------------------*/
 void vButtonTask(void *pvParameters)
@@ -312,23 +337,28 @@ void vDriverHeaterTask(void *pvParameters)
 
             }
             if(  (Driver_Seat_Info.current_temp > 40) || (Driver_Seat_Info.current_temp <5) ){
-                Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_OFF;
-                Driver_Seat_CurrentTemp = Driver_Seat_Info.current_temp ;
-                Driver_Seat_HeaterState="OFF";
+
                 vTaskSuspend(xDriverHeaterHandlerTaskHandle);
                 GPIO_PORTF_Leds_Off();
                 GPIO_RedLedOn();
-                if(Driver_Error.ErrorTime == 0){
-                    Driver_Error.ErrorTime = GPTM_WTimer0Read();
-                }
 
-                Driver_Error.Error = "Invalid Temp";
+                Driver_Seat_Info.heater_output_signal = HEAT_OUTPUT_OFF;
+                Driver_Seat_CurrentTemp = Driver_Seat_Info.current_temp ;
+                Driver_Seat_HeaterState="OFF";
+
+                Driver_Error.ErrorTime = GPTM_WTimer0Read()/10;
                 Driver_Error.SensorReading = Driver_Seat_CurrentTemp;
+                Driver_Error.Error = "Temp";
 
                 (Driver_Seat_Info.heat_level == HEAT_LEVEL_OFF)  ? (Driver_Error.HeatingLevel="OFF") :
                 (Driver_Seat_Info.heat_level == HEAT_LEVEL_LOW)  ? (Driver_Error.HeatingLevel="LOW"):
                 (Driver_Seat_Info.heat_level == HEAT_LEVEL_MED)  ? (Driver_Error.HeatingLevel="MED"):
                 (Driver_Seat_Info.heat_level == HEAT_LEVEL_HIGH) ? (Driver_Error.HeatingLevel="HIGH"):(Driver_Error.HeatingLevel="INVALID");
+
+                 time_split_write(Driver_Error.ErrorTime,DriverERROR_Data);
+                 string_split_write(Driver_Error.HeatingLevel, Driver_Error.Error, DriverERROR_Data);
+                 DriverERROR_Data[4] = Driver_Seat_CurrentTemp;
+                 EEPROMProgram(DriverERROR_Data, 0x0, sizeof(DriverERROR_Data));
             }
             else{
                 vTaskResume(xDriverHeaterHandlerTaskHandle);
@@ -365,23 +395,28 @@ void vPassengerHeaterTask(void *pvParameters)
 
             }
             if(  (Passenger_Seat_Info.current_temp > 40) || (Passenger_Seat_Info.current_temp <5)  ){
-                Passenger_Seat_Info.heater_output_signal = HEAT_OUTPUT_OFF;
-                Passenger_Seat_CurrentTemp = Passenger_Seat_Info.current_temp ;
-                Passenger_Seat_HeaterState="OFF";
+
                 vTaskSuspend(xPassengerHeaterHandlerTaskHandle);
                 GPIO_PORTA_Leds_Off();
                 GPIO_PORTA_RedLedOn();
-                if(Passenger_Error.ErrorTime == 0){
-                    Passenger_Error.ErrorTime = GPTM_WTimer0Read();
-                }
 
-                Passenger_Error.Error = "Invalid Temp";
+                Passenger_Seat_Info.heater_output_signal = HEAT_OUTPUT_OFF;
+                Passenger_Seat_CurrentTemp = Passenger_Seat_Info.current_temp ;
+                Passenger_Seat_HeaterState="OFF";
+
+                Passenger_Error.ErrorTime = GPTM_WTimer0Read()/10;
+                Passenger_Error.Error = "Temp";
                 Passenger_Error.SensorReading = Passenger_Seat_CurrentTemp;
 
                 (Passenger_Seat_Info.heat_level == HEAT_LEVEL_OFF)  ? (Passenger_Error.HeatingLevel="OFF") :
                 (Passenger_Seat_Info.heat_level == HEAT_LEVEL_LOW)  ? (Passenger_Error.HeatingLevel="LOW"):
                 (Passenger_Seat_Info.heat_level == HEAT_LEVEL_MED)  ? (Passenger_Error.HeatingLevel="MED"):
                 (Passenger_Seat_Info.heat_level == HEAT_LEVEL_HIGH) ? (Passenger_Error.HeatingLevel="HIGH"):(Passenger_Error.HeatingLevel="INVALID");
+
+                time_split_write(Passenger_Error.ErrorTime,PassengerERROR_Data);
+                string_split_write(Passenger_Error.HeatingLevel, Passenger_Error.Error, PassengerERROR_Data);
+                PassengerERROR_Data[4] = Passenger_Seat_CurrentTemp;
+                EEPROMProgram(PassengerERROR_Data, 0x400, sizeof(PassengerERROR_Data));
 
             }
             else{
@@ -502,6 +537,7 @@ void vDriverTempTask(void *pvParameters)
 {
     for (;;)
     {
+
         xQueueSend(xQueueDriverTemperature,&DriverTemperature,portMAX_DELAY);
         vTaskDelay(pdMS_TO_TICKS(2000));
         ADC0_PSSI_REG |= (1<<3);        /* Enable SS3 conversion or start sampling data from AN0 */
@@ -630,30 +666,39 @@ void vRunTimeMeasurementsTask(void *pvParameters){
             UART0_SendString("Screen execution time is: ");
             UART0_SendInteger(ullTasksExecutionTime[8] /10 );
             UART0_SendString(" msec \r\n");
+
             UART0_SendString("-------------------------Error Report------------------------\r\n");
 
-            UART0_SendString("Driver Error:\r\n");
-            UART0_SendString(Driver_Error.Error);
-            UART0_SendString(" - At Time : ");
-            UART0_SendInteger(Driver_Error.ErrorTime /10);
-            UART0_SendString(" msec");
-            UART0_SendString(" - At Level : ");
-            UART0_SendString(Driver_Error.HeatingLevel);
-            UART0_SendString(" - Sensor Reading : ");
-            UART0_SendInteger(Driver_Error.SensorReading );
-            UART0_SendString(" deg\r\n");
-            UART0_SendString("Passenger Error:\r\n");
-            UART0_SendString(Passenger_Error.Error);
-            UART0_SendString(" - At Time : ");
-            UART0_SendInteger(Passenger_Error.ErrorTime /10);
-            UART0_SendString(" msec");
-            UART0_SendString(" - At Level : ");
-            UART0_SendString(Passenger_Error.HeatingLevel);
-            UART0_SendString(" - Sensor Reading : ");
-            UART0_SendInteger(Passenger_Error.SensorReading );
-            UART0_SendString(" deg\r\n");
-            UART0_SendString("-------------------------Resources--------------------------\r\n");
+            EEPROMRead(DriverERROR_Read, 0x0, sizeof(DriverERROR_Read));
+            EEPROMRead(PassengerERROR_Read, 0x400, sizeof(PassengerERROR_Read));
 
+            driver_error_time = time_concate_read(DriverERROR_Read);
+            passenger_error_time = time_concate_read(PassengerERROR_Read);
+            string_concate_read(DriverERROR_Read,PassengerERROR_Read);
+
+            UART0_SendString("Driver Error is: ");
+            UART0_SendByte(dr_err_c1); UART0_SendByte(dr_err_c2); UART0_SendByte(dr_err_c3); UART0_SendByte(dr_err_c4);
+            UART0_SendString(" - At Time : ");
+            UART0_SendInteger(driver_error_time);
+            UART0_SendString(" msec");
+            UART0_SendString(" - At Level : ");
+            UART0_SendByte(dr_hl_c1); UART0_SendByte(dr_hl_c2); UART0_SendByte(dr_hl_c3); UART0_SendByte(dr_hl_c4);
+            UART0_SendString(" - Sensor Reading : ");
+            UART0_SendInteger(DriverERROR_Read[4]);
+            UART0_SendString(" deg\r\n");
+
+            UART0_SendString("Passenger Error is: ");
+            UART0_SendByte(ps_err_c1); UART0_SendByte(ps_err_c2); UART0_SendByte(ps_err_c3); UART0_SendByte(ps_err_c4);
+            UART0_SendString(" - At Time : ");
+            UART0_SendInteger(passenger_error_time);
+            UART0_SendString(" msec");
+            UART0_SendString(" - At Level : ");
+            UART0_SendByte(ps_hl_c1); UART0_SendByte(ps_hl_c2); UART0_SendByte(ps_hl_c3); UART0_SendByte(ps_hl_c4);
+            UART0_SendString(" - Sensor Reading : ");
+            UART0_SendInteger(PassengerERROR_Read[4] );
+            UART0_SendString(" deg\r\n");
+
+            UART0_SendString("-------------------------Resources--------------------------\r\n");
             UART0_SendString("Driver Mutex Lock Time is: ");
             if( (Resource_TotalLockTime[0] / 10) == 0 )  { Resource_TotalLockTime[0] = 1;}
             UART0_SendInteger(Resource_TotalLockTime[0]);
@@ -671,8 +716,8 @@ void vRunTimeMeasurementsTask(void *pvParameters){
             UART0_SendString("UART Mutex Lock Time is: ");
             UART0_SendInteger(Resource_TotalLockTime[4]/10);
             UART0_SendString(" msec\r\n");
-
             UART0_SendString( "-------------------------------------------\r\n" );
+
             taskEXIT_CRITICAL();
             xSemaphoreGive(xUARTMutex);
         }

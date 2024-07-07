@@ -44,8 +44,8 @@ void GPIO_BuiltinButtonsLedsInit(void)
 void GPIO_PORTA_LedsInit(void)
 {
     /*
-     * PA2 --> Green LED
-     * PA3 --> Blue LED
+     * PA3 --> Green LED
+     * PA2 --> Blue LED
      * PA4 --> Red LED
      */
 
